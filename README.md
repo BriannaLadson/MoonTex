@@ -1,4 +1,6 @@
 # MoonTex
+![MoonTex Moon Phases](https://github.com/user-attachments/assets/a730efd3-7c5d-460c-94c1-1c7092e91706)
+
 MoonTex is a noise-based texture generator that creates realistic grayscale moon phase images with customizable lighting, crater intensity, and export options for use in games, apps, and procedural art.
 
 * Powered by Python, Pillow, and Noise.
