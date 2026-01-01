@@ -1,4 +1,4 @@
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 import math
 from PIL import Image
@@ -165,9 +165,9 @@ class MoonTex:
 
 		# Backwards-compatible aliases
 		aliases = {
-            "New": "New Moon",
-            "Full": "Full Moon",
-        }
+			"New": "New Moon",
+			"Full": "Full Moon",
+		}
 
 		name = aliases.get(name, name)
 
@@ -188,9 +188,12 @@ class MoonTex:
 		pixels = img.load()
 
 		w, h = self.image_size
+
+		# Add a small padding so the circle doesn't hug the edges
+		padding = 4  # tweak this if you want more or less space
 		cx = w / 2
 		cy = h / 2
-		radius = min(w, h) / 2
+		radius = (min(w, h) / 2) - padding
 		radius_sq = radius * radius  # faster distance comparison
 
 		# Shadow offset for crescents/gibbous
@@ -207,8 +210,8 @@ class MoonTex:
 				dy = y - cy
 				dist_sq = dx * dx + dy * dy
 
-				# faster distance check
-				if dist_sq <= radius_sq:
+				# use < instead of <=, plus padding, to avoid clipped-looking edges
+				if dist_sq < radius_sq:
 
 					# crater noise
 					nx = dx * self.noise_scale
