@@ -1,8 +1,9 @@
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 import math
 from PIL import Image
 import noise
+
 
 class MoonTex:
 	"""
@@ -16,9 +17,9 @@ class MoonTex:
 	"""
 
 	def __init__(
-		self, 
-		image_size=300, 
-		bg_color=(5, 5, 20), 
+		self,
+		image_size=300,
+		bg_color=(5, 5, 20),
 		noise_scale=0.01,
 		octaves=3,
 		persistence=0.5,
@@ -29,11 +30,11 @@ class MoonTex:
 		brightness=(50, 230),
 	):
 		self.phases = [
-			"New",
+			"New Moon",
 			"Waxing Crescent",
 			"First Quarter",
 			"Waxing Gibbous",
-			"Full",
+			"Full Moon",
 			"Waning Gibbous",
 			"Last Quarter",
 			"Waning Crescent",
@@ -66,7 +67,6 @@ class MoonTex:
 
 		# Brightness range
 		self.brightness = self._validate_brightness(brightness)
-
 
 	# ---------- VALIDATION HELPERS ----------
 
@@ -154,16 +154,35 @@ class MoonTex:
 
 		return (b_min, b_max)
 
+	# ---------- PHASE NORMALIZATION ----------
 
-	# ---------- CORE GENERATION LOGIC ----------
+	def _normalize_phase_name(self, phase):
+		"""Normalize input phase name to the canonical CQCalendar-style name."""
+		if not isinstance(phase, str):
+			raise ValueError("phase must be a string.")
 
-	def generate(self, phase="Full"):
+		name = phase.strip().title()
 
-		# NEW: Phase validation
-		if phase not in self.phases:
+		# Backwards-compatible aliases
+		aliases = {
+            "New": "New Moon",
+            "Full": "Full Moon",
+        }
+
+		name = aliases.get(name, name)
+
+		if name not in self.phases:
 			raise ValueError(
 				f"Invalid phase '{phase}'. Must be one of: {', '.join(self.phases)}"
 			)
+
+		return name
+
+	# ---------- CORE GENERATION LOGIC ----------
+
+	def generate(self, phase="Full Moon"):
+		# Normalize to CQCalendar-style phase name
+		phase = self._normalize_phase_name(phase)
 
 		img = Image.new("RGB", self.image_size, self.bg_color)
 		pixels = img.load()
@@ -172,7 +191,7 @@ class MoonTex:
 		cx = w / 2
 		cy = h / 2
 		radius = min(w, h) / 2
-		radius_sq = radius * radius  # NEW: faster distance comparison
+		radius_sq = radius * radius  # faster distance comparison
 
 		# Shadow offset for crescents/gibbous
 		shadow_offset_factor = {
@@ -188,7 +207,7 @@ class MoonTex:
 				dy = y - cy
 				dist_sq = dx * dx + dy * dy
 
-				# NEW: faster distance check
+				# faster distance check
 				if dist_sq <= radius_sq:
 
 					# crater noise
@@ -205,16 +224,19 @@ class MoonTex:
 
 					crater = ((n + 1) / 2.0) * self.intensity
 					gray_factor = (1.0 - crater) if self.invert_crater_noise else crater
-					gray = int(self.brightness[0] + (self.brightness[1] - self.brightness[0]) * gray_factor)
+					gray = int(
+						self.brightness[0]
+						+ (self.brightness[1] - self.brightness[0]) * gray_factor
+					)
 
 					gray = max(0, min(255, gray))  # clamp
 
 					r = g = b = gray
 
 					# lighting model
-					if phase == "New":
+					if phase == "New Moon":
 						lit = False
-					elif phase == "Full":
+					elif phase == "Full Moon":
 						lit = True
 					elif phase == "First Quarter":
 						lit = (dx >= 0)
@@ -227,9 +249,15 @@ class MoonTex:
 
 					if not lit:
 						shadow_factor = 0.15
-						r = int(self.bg_color[0] * (1 - shadow_factor) + r * shadow_factor)
-						g = int(self.bg_color[1] * (1 - shadow_factor) + g * shadow_factor)
-						b = int(self.bg_color[2] * (1 - shadow_factor) + b * shadow_factor)
+						r = int(
+							self.bg_color[0] * (1 - shadow_factor) + r * shadow_factor
+						)
+						g = int(
+							self.bg_color[1] * (1 - shadow_factor) + g * shadow_factor
+						)
+						b = int(
+							self.bg_color[2] * (1 - shadow_factor) + b * shadow_factor
+						)
 
 					pixels[x, y] = (r, g, b)
 
@@ -238,14 +266,15 @@ class MoonTex:
 
 		return img
 
-
 	# ---------- EXPORT FUNCTIONS ----------
 
 	def export_moon_phase_image(self, output_dir=".", phase=None):
-		if phase not in self.phases:
-			raise ValueError(f"Invalid phase: {phase}")
+		if phase is None:
+			raise ValueError("phase is required.")
+
+		phase = self._normalize_phase_name(phase)
 		img = self.generate(phase)
-		img.save(f"{output_dir}/{phase} Moon.png")
+		img.save(f"{output_dir}/{phase}.png")
 
 	def export_all_moon_phase_images(self, output_dir="."):
 		for p in self.phases:
