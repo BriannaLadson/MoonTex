@@ -13,6 +13,11 @@ MoonTex is a noise-based texture generator that creates realistic grayscale moon
 pip install -r requirements.txt
 ```
 ***
+## MoonTex Installation
+```
+pip install moontex
+```
+***
 ## How to Generate a Single Moon Phase Texture
 ```
 #Initialize Generator
