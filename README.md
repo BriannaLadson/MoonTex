@@ -1,11 +1,20 @@
 # MoonTex v0.2.1
-![MoonTex Moon Phases](https://github.com/user-attachments/assets/a730efd3-7c5d-460c-94c1-1c7092e91706)
+![MoonTex Moon Phases (1)](https://github.com/user-attachments/assets/fdc45889-056c-48a9-8d74-1b5330e55c86)
 
 MoonTex is a noise-based texture generator that creates realistic grayscale moon phase images with customizable lighting, crater intensity, and export options for use in games, apps, and procedural art.
 
 * Powered by Python, Pillow, and Noise.
 * Creates 8 lunar phases from a single API.
 * No dependencies beyond core libs + 2 lightweight packages.
+
+***
+## Example Usages
+You probably already know what you're going to use MoonTex for but here are some example usages if you need ideas.
+
+### Day/Night Cycle Skybox
+Here's an example of MoonTex being used in a raycasting demo made with Tkinter and CQCalendar. The player is in a walled off grassy area with a pond in the middle. Underneath the 2D minimap, you can see the current time/date/moon phase. Time passes on an hourly basis. As day turns into night an image of the moon is shown in the sky based on the current moon phase.
+
+<img src="https://github.com/user-attachments/assets/f354aa9b-3076-4925-b156-9cee2293759c" width="640" height="360">
 
 ***
 ## Dependency Installation
