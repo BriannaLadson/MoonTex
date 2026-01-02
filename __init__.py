@@ -1,4 +1,5 @@
 from .moontex import MoonTex
 
 __all__ = ["MoonTex"]
-__version__ = "0.1.2"
+
+__version__ = "0.2.1"
