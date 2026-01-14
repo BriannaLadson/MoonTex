@@ -1,4 +1,4 @@
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 import os
 from PIL import Image
@@ -20,6 +20,10 @@ class MoonTex:
 	Notes (v1.0.0 behavior):
 	- Built-in phase names are validated against self.phases.
 	- Custom phase strings are allowed ONLY if you provide phase_offset.
+
+	Notes (v1.0.1 behavior):
+	- If phase_offset is provided, it overrides built-in phase behavior.
+	- phase_offset ~= 0 produces a quarter-like terminator (half-lit).
 	"""
 
 	def __init__(
@@ -247,6 +251,8 @@ class MoonTex:
 
 		feather = terminator_softness * (radius * 0.06)
 
+		quarter_band = 0.12  # |phase_offset| below this blends toward quarter-like terminator
+
 		for y in range(h):
 			for x in range(w):
 				dx = x - cx
@@ -280,25 +286,48 @@ class MoonTex:
 				lb = int(tint[2] * lum)
 
 				# Litness factor (0..1)
-				if is_builtin_phase and phase == "Full Moon":
+				# v1.0.1 change:
+				# - If phase_offset is provided (even for built-in phases), it overrides built-in behavior.
+				# - Manual mode treats phase_offset ~= 0 as a quarter-like terminator (half-lit).
+				if is_builtin_phase and (phase_offset is None) and phase == "Full Moon":
 					lit = 1.0
-				elif is_builtin_phase and phase == "New Moon":
+				elif is_builtin_phase and (phase_offset is None) and phase == "New Moon":
 					lit = 0.0
-				elif is_builtin_phase and phase == "First Quarter":
+				elif is_builtin_phase and (phase_offset is None) and phase == "First Quarter":
 					lit = self._smoothstep(-feather, feather, dx)
-				elif is_builtin_phase and phase == "Last Quarter":
+				elif is_builtin_phase and (phase_offset is None) and phase == "Last Quarter":
 					lit = 1.0 - self._smoothstep(-feather, feather, dx)
 				else:
-					# Manual/custom or crescent/gibbous built-ins
+					# Manual/custom, or any built-in phase when phase_offset is provided.
 					po = phase_offset
 					if po is None:
 						# built-in crescent/gibbous without explicit phase_offset
 						po = default_offsets.get(phase, 0.0)
 
-					offset = (1.0 - abs(po)) * radius
-					dx_eff = -dx if po < 0 else dx
-					s = (dx_eff - offset) ** 2 + dy ** 2 - radius_sq
-					lit = self._smoothstep(-feather, feather, s)
+					abs_po = abs(po)
+
+					# Quarter-like terminator near zero offset (requested behavior: phase_offset=0 -> quarter)
+					if abs_po < quarter_band:
+						# Waxing (negative): light on right. Waning (positive): light on left.
+						if po > 0:
+							lit_plane = 1.0 - self._smoothstep(-feather, feather, dx)
+						else:
+							lit_plane = self._smoothstep(-feather, feather, dx)
+
+						# Blend into circle-based geometry as you move away from 0
+						po_adj = quarter_band if po >= 0 else -quarter_band
+						offset = (1.0 - abs(po_adj)) * radius
+						dx_eff = -dx if po_adj < 0 else dx
+						s = (dx_eff - offset) ** 2 + dy ** 2 - radius_sq
+						lit_circle = self._smoothstep(-feather, feather, s)
+
+						t = abs_po / quarter_band  # 0..1
+						lit = (1.0 - t) * lit_plane + t * lit_circle
+					else:
+						offset = (1.0 - abs_po) * radius
+						dx_eff = -dx if po < 0 else dx
+						s = (dx_eff - offset) ** 2 + dy ** 2 - radius_sq
+						lit = self._smoothstep(-feather, feather, s)
 
 				sf = self.shadow_factor
 				r, g, b = lr, lg, lb

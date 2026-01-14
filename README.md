@@ -1,11 +1,14 @@
-# MoonTex v1.0.0
+# MoonTex v1.0.1
 ![MoonTex Moon Phases (1)](https://github.com/user-attachments/assets/fdc45889-056c-48a9-8d74-1b5330e55c86)
 
 MoonTex is a procedural moon texture generator for Python that creates stylized, noise-based moon phase images with full control over surface detail, lighting geometry, color tinting, and export behavior.
 
+MoonTex is designed for games, simulations, and procedural worlds, where moons are generated programmatically rather than painted by hand.
+
 ## Key Features
 * Procedural moon surface using 2D simplex noise
 * Manual crescent / gibbous shaping via phase_offset
+* Quarter (half-lit) moons via phase_offset = 0
 * Color-tinted moons (RGB or hex, CQCalendar-compatible)
 * Multiple shadow styles (blend, alpha, multiply, auto)
 * Soft terminator edge for smooth light-to-dark transitions
@@ -141,6 +144,11 @@ MoonTex(
 * "Waning Crescent"
 
 You may also use custom phase names when supplying phase_offset.
+***
+## Related Tools
+### MoonTex Studio
+* MoonTex Studio is a visual GUI built on top of the MoonTex library that allows you to design, preview, and export procedural moon phases and full lunar cycles without writing code. It provides real-time previews, per-phase editing, and batch export tools for faster iteration in games and simulations.
+
 ***
 ## Related Libraries
 * [CQCalendar](https://github.com/BriannaLadson/CQCalendar): A lightweight, tick-based time and calendar system for Python games and simulations.
