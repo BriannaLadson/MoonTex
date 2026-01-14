@@ -1,4 +1,4 @@
-__version__ = "0.2.1"
+__version__ = "1.0.0"
 
 import os
 from PIL import Image
@@ -7,18 +7,19 @@ import noise
 
 class MoonTex:
 	"""
-	Generate grayscale moon textures for all major lunar phases
-	using 2D simplex noise.
+	MoonTex (Moon Texture Generator)
 
-	v0.2.1 changes:
-	- Skybox-safe dark side rendering (no bg_color tint bleeding)
-	- Optional transparent background (RGBA)
-	- Phase index OR phase name support
-	- Preview rendering (size override)
-	- Slightly smoother moon edge
+	Features:
+	- Procedural moon surface texture via simplex noise
+	- Manual crescent geometry via phase_offset (-1..1)
+	- Moon tinting via RGB or hex (CQCalendar-compatible)
+	- Shadow styles: blend / alpha / multiply / auto
+	- Soft terminator edge (smooth light-to-dark boundary)
+	- Optional transparent background
 
-	NOTE:
-	- Free MoonTex exports images only (PNG).
+	Notes (v1.0.0 behavior):
+	- Built-in phase names are validated against self.phases.
+	- Custom phase strings are allowed ONLY if you provide phase_offset.
 	"""
 
 	def __init__(
@@ -37,8 +38,8 @@ class MoonTex:
 		padding=4,
 		edge_softness=1.5,
 		shadow_factor=0.15,
-		shadow_mode="bg",   # "bg" (legacy) or "neutral" (skybox-safe)
-		dark_floor=0.0,     # 0..1 minimum dark-side visibility
+		shadow_mode="bg",   # legacy / compatibility
+		dark_floor=0.0,     # min alpha in alpha-shadow mode
 	):
 		self.phases = [
 			"New Moon",
@@ -51,66 +52,42 @@ class MoonTex:
 			"Waning Crescent",
 		]
 
-		# Image size
 		self.image_size = self._validate_image_size(image_size)
-
-		# Background color (used for non-transparent output + legacy shadows)
 		self.bg_color = self._validate_color(bg_color, "bg_color")
+		self.transparent_background = bool(transparent_background)
 
-		# Transparent background (RGBA)
-		if not isinstance(transparent_background, bool):
-			raise ValueError("transparent_background must be a bool.")
-		self.transparent_background = transparent_background
-
-		# Padding so the moon doesn't hug the edges
 		self.padding = self._validate_positive_int(padding, "padding", min_value=0)
+		self.edge_softness = self._validate_float_range(edge_softness, "edge_softness", 0.0, 10.0)
+		self.shadow_factor = self._validate_float_range(shadow_factor, "shadow_factor", 0.0, 1.0)
 
-		# Soft edge blending
-		self.edge_softness = self._validate_float_range(
-			edge_softness, "edge_softness", 0.0, 10.0
-		)
-
-		# Shadow strength
-		self.shadow_factor = self._validate_float_range(
-			shadow_factor, "shadow_factor", 0.0, 1.0
-		)
-
-		# Shadow mode
 		if shadow_mode not in ("bg", "neutral"):
 			raise ValueError("shadow_mode must be 'bg' or 'neutral'.")
 		self.shadow_mode = shadow_mode
 
-		# Minimum visibility for dark side (earthshine)
 		self.dark_floor = self._validate_float_range(dark_floor, "dark_floor", 0.0, 1.0)
 
-		# Noise parameters
 		self.noise_scale = self._validate_positive_float(noise_scale, "noise_scale")
 		self.octaves = self._validate_positive_int(octaves, "octaves", min_value=1)
-		self.persistence = self._validate_float_range(
-			persistence, "persistence", 0.0, 1.0
-		)
+		self.persistence = self._validate_float_range(persistence, "persistence", 0.0, 1.0)
 		self.lacunarity = self._validate_positive_float(lacunarity, "lacunarity")
-
-		# Seed
 		self.seed = int(seed)
 
-		# Intensity
 		self.intensity = self._validate_float_range(intensity, "intensity", 0.0, 1.0)
 
-		# Invert crater flag
 		if not isinstance(invert_crater_noise, bool):
 			raise ValueError("invert_crater_noise must be a bool.")
 		self.invert_crater_noise = invert_crater_noise
 
-		# Brightness range
 		self.brightness = self._validate_brightness(brightness)
 
-	# ---------- VALIDATION HELPERS ----------
+	# ---------- VALIDATION ----------
+
+	def _validate_phase_offset(self, phase_offset):
+		if phase_offset is None:
+			return None
+		return max(-1.0, min(1.0, float(phase_offset)))
 
 	def _validate_image_size(self, image_size):
-		if image_size is None:
-			return (300, 300)
-
 		if isinstance(image_size, int):
 			if image_size <= 0:
 				raise ValueError("image_size must be positive.")
@@ -140,6 +117,16 @@ class MoonTex:
 				raise ValueError(f"{name} values must be 0–255.")
 		return tuple(color)
 
+	def _validate_hex_color(self, value):
+		if value is None:
+			return None
+		if not isinstance(value, str):
+			raise ValueError("hex color must be a string.")
+		s = value.lstrip("#")
+		if len(s) != 6:
+			raise ValueError("hex color must be #RRGGBB.")
+		return tuple(int(s[i:i+2], 16) for i in (0, 2, 4))
+
 	def _validate_positive_float(self, value, name):
 		value = float(value)
 		if value <= 0:
@@ -168,7 +155,7 @@ class MoonTex:
 			raise ValueError("brightness min must be <= max.")
 		return (b0, b1)
 
-	# ---------- PHASE NORMALIZATION ----------
+	# ---------- PHASE ----------
 
 	def _normalize_phase(self, phase):
 		if isinstance(phase, int):
@@ -181,25 +168,66 @@ class MoonTex:
 
 		name = phase.strip().title()
 		aliases = {"New": "New Moon", "Full": "Full Moon"}
-		name = aliases.get(name, name)
+		return aliases.get(name, name)
 
-		if name not in self.phases:
-			raise ValueError(f"Invalid phase: {phase}")
-		return name
+	# ---------- SMOOTHSTEP ----------
 
-	# ---------- CORE GENERATION ----------
+	def _smoothstep(self, e0, e1, x):
+		if e0 == e1:
+			return 1.0 if x >= e1 else 0.0
+		t = (x - e0) / (e1 - e0)
+		t = max(0.0, min(1.0, t))
+		return t * t * (3 - 2 * t)
 
-	def generate(self, phase="Full Moon", size=None):
+	# ---------- CORE ----------
+
+	def generate(
+		self,
+		phase="Full Moon",
+		size=None,
+		phase_offset=None,
+		moon_color_hex=None,
+		moon_color_rgb=None,
+		shadow_style="auto",
+		shadow_color_hex=None,
+		shadow_color_rgb=None,
+		terminator_softness=1.25,
+	):
 		phase = self._normalize_phase(phase)
+		phase_offset = self._validate_phase_offset(phase_offset)
 
-		image_size = self.image_size if size is None else self._validate_image_size(size)
-		w, h = image_size
+		# Fix #1: validate phase usage
+		# - If it's a known phase, ok.
+		# - If it's custom, you MUST provide phase_offset (manual mode).
+		is_builtin_phase = (phase in self.phases)
+		if (not is_builtin_phase) and (phase_offset is None):
+			raise ValueError(
+				"Unknown phase name. Use one of MoonTex.phases, or provide phase_offset for custom phases."
+			)
 
-		if self.transparent_background:
-			img = Image.new("RGBA", image_size, (0, 0, 0, 0))
+		if moon_color_rgb is not None:
+			tint = self._validate_color(moon_color_rgb, "moon_color_rgb")
 		else:
-			img = Image.new("RGB", image_size, self.bg_color)
+			tint = self._validate_hex_color(moon_color_hex) or (255, 255, 255)
 
+		if shadow_color_rgb is not None:
+			shadow_color = self._validate_color(shadow_color_rgb, "shadow_color_rgb")
+		else:
+			shadow_color = self._validate_hex_color(shadow_color_hex) or self.bg_color
+
+		if shadow_style == "auto":
+			shadow_style = "alpha" if self.transparent_background else "blend"
+
+		if shadow_style not in ("blend", "alpha", "multiply"):
+			raise ValueError("shadow_style must be 'blend', 'alpha', 'multiply', or 'auto'.")
+
+		w, h = self.image_size if size is None else self._validate_image_size(size)
+
+		img = Image.new(
+			"RGBA" if self.transparent_background else "RGB",
+			(w, h),
+			(0, 0, 0, 0) if self.transparent_background else self.bg_color
+		)
 		pixels = img.load()
 
 		cx, cy = w / 2, h / 2
@@ -210,12 +238,14 @@ class MoonTex:
 		b_range = b1 - b0
 		snoise2 = noise.snoise2
 
-		shadow_offset_factor = {
-			"Waxing Crescent": -0.3,
-			"Waxing Gibbous": -1.4,
-			"Waning Crescent": 0.3,
-			"Waning Gibbous": 1.4,
-		}.get(phase, None)
+		default_offsets = {
+			"Waxing Crescent": -0.75,
+			"Waxing Gibbous": -0.25,
+			"Waning Gibbous": 0.25,
+			"Waning Crescent": 0.75,
+		}
+
+		feather = terminator_softness * (radius * 0.06)
 
 		for y in range(h):
 			for x in range(w):
@@ -228,7 +258,6 @@ class MoonTex:
 						pixels[x, y] = self.bg_color
 					continue
 
-				# Crater noise
 				n = snoise2(
 					dx * self.noise_scale,
 					dy * self.noise_scale,
@@ -241,94 +270,67 @@ class MoonTex:
 				crater = ((n + 1) / 2.0) * self.intensity
 				gray_factor = (1 - crater) if self.invert_crater_noise else crater
 				gray = int(b0 + b_range * gray_factor)
+
+				# Fix #2: clamp gray before luminance conversion
 				gray = max(0, min(255, gray))
-				r = g = b = gray
+				lum = gray / 255.0
 
-				# Lighting
-				if phase == "New Moon":
-					lit = False
-				elif phase == "Full Moon":
-					lit = True
-				elif phase == "First Quarter":
-					lit = dx >= 0
-				elif phase == "Last Quarter":
-					lit = dx <= 0
+				lr = int(tint[0] * lum)
+				lg = int(tint[1] * lum)
+				lb = int(tint[2] * lum)
+
+				# Litness factor (0..1)
+				if is_builtin_phase and phase == "Full Moon":
+					lit = 1.0
+				elif is_builtin_phase and phase == "New Moon":
+					lit = 0.0
+				elif is_builtin_phase and phase == "First Quarter":
+					lit = self._smoothstep(-feather, feather, dx)
+				elif is_builtin_phase and phase == "Last Quarter":
+					lit = 1.0 - self._smoothstep(-feather, feather, dx)
 				else:
-					offset = shadow_offset_factor * radius
-					lit = not ((dx - offset) ** 2 + dy ** 2 <= radius_sq)
+					# Manual/custom or crescent/gibbous built-ins
+					po = phase_offset
+					if po is None:
+						# built-in crescent/gibbous without explicit phase_offset
+						po = default_offsets.get(phase, 0.0)
 
-				if not lit:
-					sf = self.shadow_factor
+					offset = (1.0 - abs(po)) * radius
+					dx_eff = -dx if po < 0 else dx
+					s = (dx_eff - offset) ** 2 + dy ** 2 - radius_sq
+					lit = self._smoothstep(-feather, feather, s)
 
-					# SKYBOX FIX
-					if self.transparent_background or self.shadow_mode == "neutral":
-						r = int(r * sf)
-						g = int(g * sf)
-						b = int(b * sf)
+				sf = self.shadow_factor
+				r, g, b = lr, lg, lb
+				a = 255
 
-						if self.dark_floor > 0:
-							floor_val = int(255 * self.dark_floor)
-							r = max(r, floor_val)
-							g = max(g, floor_val)
-							b = max(b, floor_val)
-					else:
-						r = int(self.bg_color[0] * (1 - sf) + r * sf)
-						g = int(self.bg_color[1] * (1 - sf) + g * sf)
-						b = int(self.bg_color[2] * (1 - sf) + b * sf)
+				if shadow_style == "blend":
+					sr = int(shadow_color[0] * (1 - sf) + lr * sf)
+					sg = int(shadow_color[1] * (1 - sf) + lg * sf)
+					sb = int(shadow_color[2] * (1 - sf) + lb * sf)
+					r = int(sr * (1 - lit) + lr * lit)
+					g = int(sg * (1 - lit) + lg * lit)
+					b = int(sb * (1 - lit) + lb * lit)
 
-				# Soft edge
-				if self.edge_softness > 0:
-					edge_band = self.edge_softness + 1
-					if radius_sq - dist_sq <= edge_band * edge_band:
-						dist = dist_sq ** 0.5
-						inner = radius - dist
-						if inner < self.edge_softness:
-							a = max(0.0, min(1.0, inner / self.edge_softness))
-							if self.transparent_background:
-								pixels[x, y] = (r, g, b, int(255 * a))
-								continue
-							else:
-								r = int(self.bg_color[0] * (1 - a) + r * a)
-								g = int(self.bg_color[1] * (1 - a) + g * a)
-								b = int(self.bg_color[2] * (1 - a) + b * a)
+				elif shadow_style == "alpha":
+					min_a = int(255 * self.dark_floor)
+					shadow_a = max(int(255 * sf), min_a)
+					a = int(shadow_a * (1 - lit) + 255 * lit)
+
+					# Keep a subtle darkening so the shadow side isn't identical
+					r = int(lr * sf * (1 - lit) + lr * lit)
+					g = int(lg * sf * (1 - lit) + lg * lit)
+					b = int(lb * sf * (1 - lit) + lb * lit)
+
+				elif shadow_style == "multiply":
+					# Fix #3: implement multiply properly
+					r = int(lr * (sf * (1 - lit) + lit))
+					g = int(lg * (sf * (1 - lit) + lit))
+					b = int(lb * (sf * (1 - lit) + lit))
 
 				if self.transparent_background:
-					pixels[x, y] = (r, g, b, 255)
+					pixels[x, y] = (r, g, b, a)
 				else:
 					pixels[x, y] = (r, g, b)
 
 		return img
-
-	def generate_preview(self, phase="Full Moon", max_size=256):
-		max_size = self._validate_positive_int(max_size, "max_size", 32)
-		return self.generate(phase=phase, size=max_size)
-
-	# ---------- EXPORT ----------
-
-	def export_moon_phase_image(self, output_dir=".", phase=None):
-		if phase is None:
-			raise ValueError("phase is required.")
-
-		phase = self._normalize_phase(phase)
-		os.makedirs(output_dir, exist_ok=True)
-
-		img = self.generate(phase)
-		filename = phase.lower().replace(" ", "_") + ".png"
-		path = os.path.join(output_dir, filename)
-		img.save(path)
-		return path
-
-	def export_all_moon_phase_images(self, output_dir="."):
-		return [self.export_moon_phase_image(output_dir, p) for p in self.phases]
-
-
-if __name__ == "__main__":
-	# Skybox-friendly defaults
-	generator = MoonTex(
-		transparent_background=True,
-		shadow_mode="neutral",
-		dark_floor=0.0,
-		image_size=(500, 500)
-	)
-	generator.export_all_moon_phase_images("moons_v0_2_1")
-	print("Export complete.")

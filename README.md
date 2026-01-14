@@ -1,11 +1,19 @@
-# MoonTex v0.2.1
+# MoonTex v1.0.0
 ![MoonTex Moon Phases (1)](https://github.com/user-attachments/assets/fdc45889-056c-48a9-8d74-1b5330e55c86)
 
-MoonTex is a noise-based texture generator that creates realistic grayscale moon phase images with customizable lighting, crater intensity, and export options for use in games, apps, and procedural art.
+MoonTex is a procedural moon texture generator for Python that creates stylized, noise-based moon phase images with full control over surface detail, lighting geometry, color tinting, and export behavior.
 
-* Powered by Python, Pillow, and Noise.
-* Creates 8 lunar phases from a single API.
-* No dependencies beyond core libs + 2 lightweight packages.
+## Key Features
+* Procedural moon surface using 2D simplex noise
+* Manual crescent / gibbous shaping via phase_offset
+* Color-tinted moons (RGB or hex, CQCalendar-compatible)
+* Multiple shadow styles (blend, alpha, multiply, auto)
+* Soft terminator edge for smooth light-to-dark transitions
+* Optional transparent background (RGBA)
+* Deterministic output via seeds
+
+Powered by Python, Pillow, and noise.
+No heavy dependencies or GPU requirements.
 
 ***
 ## Example Usages
@@ -28,7 +36,7 @@ pip install -r requirements.txt
 generator = moontex.MoonTex()
 
 #You can specify the output directory if you want. Specify a moon phase name.
-generator.export_moon_phase_image(output_dir=".", phase="Full")
+generator.export_moon_phase_image(output_dir=".", phase="Full Moon")
 ```
 ***
 ## How to Generate All Moon Phase Textures
@@ -40,6 +48,30 @@ generator = moontex.MoonTex()
 generator.export_all_moon_phase_images(output=".")
 ```
 ***
+## Manual Shape & Color Control (Core Feature)
+MoonTex does not force predefined lunar geometry.
+You can define moon shapes directly using a continuous phase_offset:
+
+-1.0 → thin waxing crescent
+
+0.0 → half moon
+
+1.0 → thin waning crescent
+
+Combined with color tinting, this allows custom moons, magical events, or stylized worlds.
+
+```
+generator.generate(
+	phase="Custom",
+	phase_offset=-0.9,
+	moon_color_hex="#ff0000",   # blood moon
+	terminator_softness=1.5
+)
+```
+If you use a custom phase name, phase_offset is required.
+Built-in phase names work without it.
+
+***
 ## Customization Options
 ```
 MoonTex(
@@ -48,28 +80,37 @@ MoonTex(
 	bg_color=(5, 5, 20),         # background RGB (used if not transparent)
 
 	# --- Noise / surface detail ---
-	noise_scale=0.01,            # simplex noise scale
-	octaves=3,                   # noise octaves
-	persistence=0.5,             # noise persistence
-	lacunarity=3,                # noise lacunarity
-	seed=0,                      # deterministic seed
-	intensity=0.4,               # crater contrast (0–1)
-	invert_crater_noise=True,    # invert crater depth
+	noise_scale=0.01,
+	octaves=3,
+	persistence=0.5,
+	lacunarity=3,
+	seed=0,
+	intensity=0.4,
+	invert_crater_noise=True,
 
 	# --- Brightness ---
-	brightness=(50, 230),        # grayscale min/max
+	brightness=(50, 230),
 
-	# --- Rendering options ---
-	transparent_background=False,# RGBA output if True
-	padding=4,                   # space between moon edge and image border
-	edge_softness=1.5,           # soft edge blend (0 disables)
+	# --- Rendering ---
+	transparent_background=False,
+	padding=4,
+	edge_softness=1.5,
 
-	# --- Shadow / dark side behavior ---
-	shadow_factor=0.15,          # darkness strength (0–1)
-	shadow_mode="bg",            # "bg" (blend to bg_color), "neutral" (darken toward black, skybox-safe)
-	dark_floor=0.0,              # minimum dark-side visibility (0 = can disappear)
+	# --- Shadow behavior ---
+	shadow_factor=0.15,
+	shadow_mode="bg",            # legacy compatibility
+	dark_floor=0.0,
 )
+
 ```
+***
+## Shadow Styles (Per-Image)
+When calling generate() you can choose how the dark side behaves:
+
+* "blend" – blends into bg_color (classic look)
+* "alpha" – uses transparency (best for skyboxes & overlays)
+* "multiply" – multiplies light (stylized / painterly)
+* "auto" – selects best option based on transparency
 ***
 ## Skybox Usage (Raycasting, Overlays)
 ```
@@ -89,15 +130,17 @@ MoonTex(
 
 ```
 ***
-## Valid Phases
-* "New"
+## Built-In Phase Names
+* "New / New Moon"
 * "Waxing Crescent"
 * "First Quarter"
 * "Waxing Gibbous"
-* "Full"
+* "Full / Full Moon"
 * "Waning Gibbous"
 * "Last Quarter"
 * "Waning Crescent"
+
+You may also use custom phase names when supplying phase_offset.
 ***
 ## Related Libraries
 * [CQCalendar](https://github.com/BriannaLadson/CQCalendar): A lightweight, tick-based time and calendar system for Python games and simulations.
