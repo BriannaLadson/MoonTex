@@ -150,7 +150,7 @@ You may also use custom phase names when supplying phase_offset.
 ***
 ## Related Tools
 ### MoonTex Studio
-* MoonTex Studio is a visual GUI built on top of the MoonTex library that allows you to design, preview, and export procedural moon phases and full lunar cycles without writing code. It provides real-time previews, per-phase editing, and batch export tools for faster iteration in games and simulations.
+* [MoonTex Studio](https://payhip.com/b/tWdQj) is a visual GUI built on top of the MoonTex library that allows you to design, preview, and export procedural moon phases and full lunar cycles without writing code. It provides real-time previews, per-phase editing, and batch export tools for faster iteration in games and simulations.
 
 ***
 ## Related Libraries
