@@ -1,4 +1,4 @@
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 import os
 from PIL import Image
@@ -363,3 +363,170 @@ class MoonTex:
 					pixels[x, y] = (r, g, b)
 
 		return img
+		
+	def export_png(
+		self,
+		path,
+		*,
+		phase="Full Moon",
+		size=None,
+		phase_offset=None,
+		moon_color_hex=None,
+		moon_color_rgb=None,
+		shadow_style="auto",
+		shadow_color_hex=None,
+		shadow_color_rgb=None,
+		terminator_softness=1.25,
+		makedirs=True
+	):
+		"""
+		Convenience: generate one phase and save it as a PNG (or any PIL-supported format by extension).
+		Returns the output path.
+		"""
+		if makedirs:
+			dirname = os.path.dirname(path)
+			if dirname:
+				os.makedirs(dirname, exist_ok=True)
+
+		img = self.generate(
+			phase=phase,
+			size=size,
+			phase_offset=phase_offset,
+			moon_color_hex=moon_color_hex,
+			moon_color_rgb=moon_color_rgb,
+			shadow_style=shadow_style,
+			shadow_color_hex=shadow_color_hex,
+			shadow_color_rgb=shadow_color_rgb,
+			terminator_softness=terminator_softness
+		)
+		img.save(path)
+		return path
+
+
+	def export_cycle(
+		self,
+		out_dir,
+		*,
+		phases=None,
+		size=None,
+		moon_color_hex=None,
+		moon_color_rgb=None,
+		shadow_style="auto",
+		shadow_color_hex=None,
+		shadow_color_rgb=None,
+		terminator_softness=1.25,
+		phase_offsets=None,
+		filename_fn=None,
+		overwrite=True
+	):
+		"""
+		Generate + export a full set of phases using the CURRENT MoonTex settings (noise/seed/etc).
+
+		- phases: list[str] of phases. Defaults to self.phases.
+		- phase_offsets: optional dict[str, float] for custom phases (required for unknown phase names).
+		- filename_fn: optional function (phase:str) -> filename (no directory).
+		- overwrite: if False, skips files that already exist.
+
+		Returns a list of written file paths.
+		"""
+		os.makedirs(out_dir, exist_ok=True)
+
+		if phases is None:
+			phases = list(self.phases)
+
+		if filename_fn is None:
+			def filename_fn(p):
+				return p.strip().replace(" ", "_").lower() + ".png"
+
+		written = []
+
+		for phase in phases:
+			phase = str(phase).strip()
+			if not phase:
+				continue
+
+			path = os.path.join(out_dir, filename_fn(phase))
+
+			if (not overwrite) and os.path.exists(path):
+				continue
+
+			po = None
+			if phase_offsets and phase in phase_offsets:
+				po = phase_offsets[phase]
+
+			img = self.generate(
+				phase=phase,
+				size=size,
+				phase_offset=po,
+				moon_color_hex=moon_color_hex,
+				moon_color_rgb=moon_color_rgb,
+				shadow_style=shadow_style,
+				shadow_color_hex=shadow_color_hex,
+				shadow_color_rgb=shadow_color_rgb,
+				terminator_softness=terminator_softness
+			)
+
+			img.save(path)
+			written.append(path)
+
+		return written
+
+if __name__ == "__main__":
+	print("Testing MoonTex library...")
+
+	# Create output directory
+	OUT_DIR = "moontex_test_output"
+	os.makedirs(OUT_DIR, exist_ok=True)
+
+	# Initialize generator with obvious, visible parameters
+	mt = MoonTex(
+		image_size=512,
+		seed=42,
+		intensity=0.5,
+		noise_scale=0.015,
+		transparent_background=False
+	)
+
+	# -------------------------------------------------
+	# Test 1: Basic generate() + manual save
+	# -------------------------------------------------
+	print("Test 1: generate() return value")
+	img = mt.generate(phase="Full Moon", moon_color_hex="#ddddff")
+	img.save(os.path.join(OUT_DIR, "manual_full_moon.png"))
+
+	# -------------------------------------------------
+	# Test 2: export_png()
+	# -------------------------------------------------
+	print("Test 2: export_png()")
+	mt.export_png(
+		os.path.join(OUT_DIR, "exported_red_full_moon.png"),
+		phase="Full Moon",
+		moon_color_hex="#ff4a4a"
+	)
+
+	# -------------------------------------------------
+	# Test 3: export_cycle() with default phases
+	# -------------------------------------------------
+	print("Test 3: export_cycle() default phases")
+	mt.export_cycle(
+		os.path.join(OUT_DIR, "default_cycle"),
+		moon_color_hex="#cfcfcf"
+	)
+
+	# -------------------------------------------------
+	# Test 4: export_cycle() with fantasy phases
+	# -------------------------------------------------
+	print("Test 4: export_cycle() fantasy phases")
+	mt.export_cycle(
+		os.path.join(OUT_DIR, "fantasy_cycle"),
+		phases=["Blood Moon", "Half Lit", "Thin Lune"],
+		phase_offsets={
+			"Blood Moon": 0.35,
+			"Half Lit": 0.0,
+			"Thin Lune": 0.85
+		},
+		moon_color_hex="#ff2b2b"
+	)
+
+	print("All tests complete.")
+	print(f"Check the '{OUT_DIR}' folder for output images.")
