@@ -17,6 +17,9 @@ MoonTex is designed for games, simulations, and procedural worlds, where moons a
 * Soft terminator edge for smooth light-to-dark transitions
 * Optional transparent background (RGBA)
 * Deterministic output via seeds
+* Single-phase image export
+* Batch export of full lunar cycles
+* Support for custom / fantasy moon phase sets
 
 Powered by Python, Pillow, and noise.
 No heavy dependencies or GPU requirements.
@@ -35,15 +38,32 @@ Here's an example of MoonTex being used in a raycasting demo made with Tkinter a
 ```
 pip install -r requirements.txt
 ```
+
+***
+## Installation
+```
+pip install moontex
+```
+
 ***
 ## How to Generate a Single Moon Phase Texture
+MoonTex provides a convenience method for exporting individual moon phase textures.
+
+### Built-In Phase
 ```
 #Initialize Generator
 generator = moontex.MoonTex()
 
 #You can specify the output directory if you want. Specify a moon phase name.
-generator.export_moon_phase_image(output_dir=".", phase="Full Moon")
+generator.export_png("full_moon.png", phase="Full Moon")
 ```
+
+### Custom Phase (Manual Geometry)
+```
+generator.export_png("blood_moon.png", phase="Blood Moon", phase_offset=0.35, moon_color_hex="#ff2b2b")
+```
+If a custom phase name is used, phase_offset is required.
+
 ***
 ## How to Generate All Moon Phase Textures
 ```
@@ -53,6 +73,49 @@ generator = moontex.MoonTex()
 #You can specify the output directory if you want. Specify a moon phase name.
 generator.export_all_moon_phase_images(output=".")
 ```
+***
+## Export the Default Lunar Cycle
+MoonTex can automatically generate and export all built-in lunar phases using a consistent moon style.
+
+```
+from moontex import MoonTex
+
+mt = MoonTex(seed=42)
+
+mt.export_cycle("default_cycle")
+```
+This exports:
+* New Moon
+* Waxing Crescent
+* First Quarter
+* Waxing Gibbous
+* Full Moon
+* Waning Gibbous
+* Last Quarter
+* Waning Crescent
+
+All images share the same surface noise and visual style.
+
+***
+## Export a Custom / Fantasy Lunar Cycle
+You may define your own phase names and geometry using phase_offsets.
+
+```
+mt.export_cycle(
+	"fantasy_cycle",
+	phases=["Blood Moon", "Half Lit", "Thin Lune"],
+	phase_offsets={
+		"Blood Moon": 0.35,
+		"Half Lit": 0.0,
+		"Thin Lune": 0.85
+	},
+	moon_color_hex="#ff0000"
+)
+
+```
+
+This is ideal for fantasy calendars, magical events, or stylized worlds.
+
 ***
 ## Manual Shape & Color Control (Core Feature)
 MoonTex does not force predefined lunar geometry.
