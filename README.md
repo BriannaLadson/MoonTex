@@ -1,4 +1,4 @@
-# MoonTex v1.0.1
+# MoonTex v1.1.0
 ![MoonTex Moon Phases (1)](https://github.com/user-attachments/assets/fdc45889-056c-48a9-8d74-1b5330e55c86)
 ![MoonTex Moon Phases (3)](https://github.com/user-attachments/assets/d0de5cb6-956d-4160-8bce-afffd7b42b03)
 ![MoonTex Moon Phases (7)](https://github.com/user-attachments/assets/34661e79-f563-4895-b8ff-f2ee83fa510f)
